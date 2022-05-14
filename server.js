@@ -1,29 +1,5 @@
 const readFile = require("fs").readFileSync;
 
-// quando incontriamo tag apertura < controlliamo i 6 caratteri successivi,
-// *** se "parse " comincia a registrare i caratteri che ci sono fino alla chiusura("/>" oppure ">")
-
-// elaborare per la ricerca della chiusura includendo la logica delle virgolette
-
-// pensare ad un modo per ignorare le virgolette o singole o doppie fino alla loro chiusura
-
-// estrarre gli attributi dalla stringa registrata(la nostra variabile maybeAMeaningfulTag) - split per spazio e split per uguale(occhio alle virgolette)
-
-// costruire l'oggetto json con la posizione iniziale e la posizione finale, e in qualche modo gli attributi all'interno di properties
-
-// *** se "parse>"  cercare tag di chiusura "</parse>", non ci sono attributi
-
-{
-  /* <parse foo="dsf" baz="ci" > </parse> */
-}
-
-let switchObject = {
-  "<parse>": "</parse>",
-  "<parse ": " />",
-  "'": "'",
-  '"': '"',
-};
-
 const html = `<html>
 <parse foo="dsf" baz="uella" ></parse> 
 <parse property="foo" ciao="orpo" />
@@ -43,6 +19,15 @@ let resultFinal = [];
 
 let tag = {};
 
+let stack = [];
+
+let tempRaw = "";
+let from;
+let amIrecording = false;
+let opening = true;
+let notInQuotes = true;
+let notInComment = true;
+
 let generateResult = (string, from, to, attributes) => {
   tag.raw = string;
   tag.from = from;
@@ -51,8 +36,6 @@ let generateResult = (string, from, to, attributes) => {
   resultFinal.push(tag);
   tag = {};
 };
-
-let stack = [];
 
 let getAttributes = (string) => {
   let attrs = string.split(" ").filter((x) => x.includes("="));
@@ -65,13 +48,6 @@ let getAttributes = (string) => {
   }
   return result;
 };
-
-let tempRaw = "";
-let from;
-let amIrecording = false;
-let opening = true;
-let notInQuotes = true;
-let notInComment = true;
 
 const htmlParser = (html) => {
   const handleQuotes = (char) => {
@@ -153,6 +129,7 @@ const htmlParser = (html) => {
       tempRaw += char;
     }
   }
+  return resultFinal
 };
 
 htmlParser(html);
