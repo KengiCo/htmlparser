@@ -17,7 +17,6 @@ const readFile = require("fs").readFileSync;
   /* <parse foo="dsf" baz="ci" > </parse> */
 }
 
-
 let switchObject = {
   "<parse>": "</parse>",
   "<parse ": " />",
@@ -25,11 +24,12 @@ let switchObject = {
   '"': '"',
 };
 
-
 const html = `<html>
-<parse foo="dsf" ></parse> 
-<parse property="foo" />
+<parse foo="dsf" baz="uella" ></parse> 
+<parse property="foo" ciao="orpo" />
 <div />
+"<parse prova="1" />"
+<!-- <parse ciao="orpo" /> -->
 .style {
 background-image: url('<parse property="foo" />');
 }
@@ -41,13 +41,15 @@ const url = '<parse property="foo" />';
 
 let resultFinal = [];
 
+let tag = {};
+
 let generateResult = (string, from, to, attributes) => {
-  let tag = {};
   tag.raw = string;
   tag.from = from;
   tag.to = to;
   tag.attributes = attributes;
   resultFinal.push(tag);
+  tag = {};
 };
 
 let stack = [];
@@ -58,103 +60,96 @@ let getAttributes = (string) => {
   for (attr of attrs) {
     let splitKeyValue = attr.split("=");
     if (splitKeyValue.length === 2) {
-      result[splitKeyValue[0]] = splitKeyValue[1];
+      result[splitKeyValue[0]] = splitKeyValue[1].substring(1 , splitKeyValue[1].length - 1);
     }
   }
   return result;
 };
 
-
-
 let tempRaw = "";
-let tempObj = {};
+let from;
 let amIrecording = false;
 let opening = true;
 let notInQuotes = true;
 let notInComment = true;
 
 const htmlParser = (html) => {
-
-  const handleQuotes = (char) =>{
-    if (char === `"` && stack[stack?.length -1] === `"`){
-      stack.pop()
-      notInQuotes = true
+  const handleQuotes = (char) => {
+    if (char === `"` && stack[stack?.length - 1] === `"`) {
+      stack.pop();
+      notInQuotes = true;
+    } else if (char === `"` && stack[stack?.length - 1] !== `"`) {
+      stack.push(char);
+      notInQuotes = false;
+    } else if (char === `'` && stack[stack?.length - 1] === `'`) {
+      stack.pop();
+      notInQuotes = true;
+    } else if (char === `'` && stack[stack?.length - 1] !== `'`) {
+      stack.push(char);
+      notInQuotes = false;
     }
-    else if(char === `"` && stack[stack?.length -1] !== `"`){
-      stack.push(char)
-      notInQuotes = false
-    }
-    else if(char === `'` && stack[stack?.length -1] === `'`){
-      stack.pop()
-      notInQuotes = true
-    }
-    else if(char === `'` && stack[stack?.length -1] !== `'`){
-      stack.push(char)
-      notInQuotes = false
-    }
-  
-  }
+  };
 
   let handleOpeningComments = (string) => {
     if (string === "<!--") {
       notInComment = false;
     }
-  }
+  };
 
   let handleClosingComments = (string) => {
     if (string === "-->") {
       notInComment = true;
     }
-  }
+  };
 
   for (let i = 0; i < html.length; i++) {
-    let ch = html.substring(i , i + 7);
+    let ch = html.substring(i, i + 5);
     const char = html[i];
-    handleQuotes(char)
+    handleQuotes(char);
 
-    if (char === "<"){
-    handleOpeningComments(html.substring(i, i+5))
+    if (char === "<") {
+      handleOpeningComments(html.substring(i, i + 4));
     }
 
-    if (char === ">"){
-      handleClosingComments(html.substring(i, i-3))
+    if (char === ">") {
+      handleClosingComments(html.substring(i - 2, 1 + 1));
     }
 
     if (opening && notInQuotes && notInComment) {
-      if (char === "<" && ch === "<parse>") {
+      if (char === "<" && html.substring(i, i + 7) === "<parse>") {
         stack.push("</parse>");
         opening = false;
         amIrecording = true;
-        tempObj.from = i;
-      } else if (char === "<" && ch === "<parse ") {
+        from = i;
+      } else if (char === "<" && html.substring(i, i + 7) === "<parse ") {
         stack.push(" />");
         opening = false;
         amIrecording = true;
-        tempObj.from = i;
+        from = i;
       } else {
         continue;
       }
-    }
-    else if (!opening && notInQuotes && notInComment) {
-      let co = html.substring(i - 6, i)
-      if (html.substring(i - 7, i) === "</parse>" && notInQuotes) {
+    } else if (!opening && notInQuotes && notInComment) {
+      let co = html.substring(i - 3, i + 1)
+      if (html.substring(i - 7, i + 1) === "</parse>" && notInQuotes) {
         opening = true;
         stack.pop();
         tempRaw += char;
         let attrs = getAttributes(tempRaw);
-        generateResult(tempRaw, tempObj.from, i, attrs);
+        generateResult(tempRaw, from, i, attrs);
         tempRaw = "";
-        tempObj = {};
-      } else if (html.substring(i - 3, i) === " />" && notInQuotes) {
+        continue;
+      } else if (html.substring(i - 2, i + 1) === " />" && notInQuotes) {
         opening = true;
         stack.pop();
         tempRaw += char;
         let attrs = getAttributes(tempRaw);
-        generateResult(tempRaw, tempObj.from, i, attrs);
+        generateResult(tempRaw, from, i, attrs);
         tempRaw = "";
-        tempObj = {};
+        continue;
       }
-    } if (amIrecording) {
+    }
+    if (amIrecording) {
       tempRaw += char;
     }
   }
