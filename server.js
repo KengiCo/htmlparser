@@ -13,12 +13,23 @@ const readFile = require("fs").readFileSync;
 
 // *** se "parse>"  cercare tag di chiusura "</parse>", non ci sono attributi
 
+{
+  /* <parse foo="dsf" baz="ci" > </parse> */
+}
 
-{/* <parse foo="dsf" baz="ci" > </parse> */}
-const html = `<html><style>
 
-<div />
+let switchObject = {
+  "<parse>": "</parse>",
+  "<parse ": " />",
+  "'": "'",
+  '"': '"',
+};
+
+
+const html = `<html>
+<parse foo="dsf" ></parse> 
 <parse property="foo" />
+<div />
 .style {
 background-image: url('<parse property="foo" />');
 }
@@ -28,7 +39,7 @@ const url = '<parse property="foo" />';
 </script>
 </html>`;
 
-let result = [];
+let resultFinal = [];
 
 let generateResult = (string, from, to, attributes) => {
   let tag = {};
@@ -36,6 +47,7 @@ let generateResult = (string, from, to, attributes) => {
   tag.from = from;
   tag.to = to;
   tag.attributes = attributes;
+  resultFinal.push(tag);
 };
 
 let stack = [];
@@ -52,59 +64,80 @@ let getAttributes = (string) => {
   return result;
 };
 
-let switchObject = {
-  "<parse>": "</parse>",
-  "<parse ": " />",
-  "'": "'",
-  '"': '"',
-};
+
 
 let tempRaw = "";
 let tempObj = {};
 let amIrecording = false;
 let opening = true;
 let notInQuotes = true;
+let notInComment = true;
 
 const htmlParser = (html) => {
-  for (let i = 0; i < html.length; i++) {
-    // let ch = html.slice(i, i + 7);
-    const char = html[i];
 
-    if (opening) {
-      if (char === "'") {
-        stack.push(char);
-        opening = false;
-        notInQuotes = false;
-      } else if (char === '"') {
-        stack.push(char);
-        opening = false;
-        notInQuotes = false;
-      } else if (html.slice(i, i + 6) === "<parse>") {
+  const handleQuotes = (char) =>{
+    if (char === `"` && stack[stack?.length -1] === `"`){
+      stack.pop()
+      notInQuotes = true
+    }
+    else if(char === `"` && stack[stack?.length -1] !== `"`){
+      stack.push(char)
+      notInQuotes = false
+    }
+    else if(char === `'` && stack[stack?.length -1] === `'`){
+      stack.pop()
+      notInQuotes = true
+    }
+    else if(char === `'` && stack[stack?.length -1] !== `'`){
+      stack.push(char)
+      notInQuotes = false
+    }
+  
+  }
+
+  let handleOpeningComments = (string) => {
+    if (string === "<!--") {
+      notInComment = false;
+    }
+  }
+
+  let handleClosingComments = (string) => {
+    if (string === "-->") {
+      notInComment = true;
+    }
+  }
+
+  for (let i = 0; i < html.length; i++) {
+    let ch = html.substring(i , i + 7);
+    const char = html[i];
+    handleQuotes(char)
+
+    if (char === "<"){
+    handleOpeningComments(html.substring(i, i+5))
+    }
+
+    if (char === ">"){
+      handleClosingComments(html.substring(i, i-3))
+    }
+
+    if (opening && notInQuotes && notInComment) {
+      if (char === "<" && ch === "<parse>") {
         stack.push("</parse>");
         opening = false;
         amIrecording = true;
         tempObj.from = i;
-        tempRaw += char;
-      } else if (html.slice(i, i + 6) === "<parse ") {
+      } else if (char === "<" && ch === "<parse ") {
         stack.push(" />");
         opening = false;
         amIrecording = true;
         tempObj.from = i;
-        tempRaw += char;
       } else {
         continue;
       }
     }
-    if (!opening) {
-      if (stack[stack.length - 1] === "'" && char === "'") {
-        opening = true;
-        stack.pop();
-        notInQuotes = true;
-      } else if (stack[stack.length - 1] === '"' && char === '"') {
-        opening = true;
-        stack.pop();
-        notInQuotes = true;
-      } else if (html.slice?.[(i - 7, i + 1)] === "</parse>" && notInQuotes) {
+    else if (!opening && notInQuotes && notInComment) {
+      let co = html.substring(i - 6, i)
+      if (html.substring(i - 7, i) === "</parse>" && notInQuotes) {
         opening = true;
         stack.pop();
         tempRaw += char;
@@ -112,7 +145,7 @@ const htmlParser = (html) => {
         generateResult(tempRaw, tempObj.from, i, attrs);
         tempRaw = "";
         tempObj = {};
-      } else if (html.slice?.[(i - 3, i + 1)] === " />" && notInQuotes) {
+      } else if (html.substring(i - 3, i) === " />" && notInQuotes) {
         opening = true;
         stack.pop();
         tempRaw += char;
@@ -120,12 +153,12 @@ const htmlParser = (html) => {
         generateResult(tempRaw, tempObj.from, i, attrs);
         tempRaw = "";
         tempObj = {};
-      } else if (notInQuotes) {
-        tempRaw += char;
       }
+    } if (amIrecording) {
+      tempRaw += char;
     }
   }
 };
 
 htmlParser(html);
-console.log(result)
+console.log(resultFinal);
